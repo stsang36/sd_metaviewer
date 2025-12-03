@@ -56,8 +56,8 @@ THEMES = {
         'fg_secondary': '#555555',
         'accent': '#0078d4',
         'accent_hover': '#106ebe',
-        'border': '#d0d0d0',
-        'text_border': '#c0c0c0',
+        'border': '#dedede',
+        'text_border': '#d0d0d0',
         'text_bg': '#ffffff',
         'canvas_bg': '#e0e0e0',
         'tag_bg': '#e3f2fd',
@@ -76,17 +76,17 @@ THEMES = {
         'fg_secondary': '#9d9d9d',
         'accent': '#0078d4',
         'accent_hover': '#1a8cff',
-        'border': '#404040',
-        'text_border': '#4a4a4a',
+        'border': '#2d2d2d',
+        'text_border': '#3a3a3a',
         'text_bg': '#252526',
-        'canvas_bg': '#2d2d30',
+        'canvas_bg': '#252526',
         'tag_bg': '#264f78',
         'tag_fg': '#9cdcfe',
         'tag_neg_bg': '#4a2020',
         'tag_neg_fg': '#f48771',
-        'button_bg': '#3c3c3c',
-        'button_active': '#505050',
-        'button_border': '#555555',
+        'button_bg': '#333333',
+        'button_active': '#454545',
+        'button_border': '#444444',
     }
 }
 
@@ -226,15 +226,16 @@ class SDMetaViewer(tk.Tk):
         self.style.configure('Title.TLabel', background=c['bg'], foreground=c['fg'], font=('Segoe UI', 14, 'bold'))
         self.style.configure('Secondary.TLabel', background=c['bg'], foreground=c['fg_secondary'], font=('Segoe UI', 10))
         
-        # Button styles - modern rounded look
+        # Button styles - modern flat look
         self.style.configure('TButton',
             background=c['button_bg'],
             foreground=c['fg'],
             font=('Segoe UI', 10),
-            borderwidth=1,
+            borderwidth=0,
             relief='flat',
-            focuscolor=c['accent'],
-            padding=(14, 7)
+            focuscolor=c['button_bg'],
+            focusthickness=0,
+            padding=(14, 8)
         )
         self.style.map('TButton',
             background=[('active', c['button_active']), ('pressed', c['accent'])],
@@ -273,36 +274,110 @@ class SDMetaViewer(tk.Tk):
             foreground=[('pressed', '#ffffff')]
         )
 
-        # Notebook (tabs)
-        self.style.configure('TNotebook', background=c['bg'], borderwidth=0)
+        # Notebook (tabs) - clean flat style with subtle border
+        self.style.configure('TNotebook', 
+            background=c['bg'], 
+            borderwidth=1, 
+            tabmargins=[0, 0, 0, 0],
+            lightcolor=c['border'],
+            darkcolor=c['border'],
+            bordercolor=c['border']
+        )
+        self.style.layout('TNotebook', [('Notebook.client', {'sticky': 'nswe'})])
+        self.style.layout('TNotebook.Tab', [
+            ('Notebook.tab', {'sticky': 'nswe', 'children': [
+                ('Notebook.padding', {'side': 'top', 'sticky': 'nswe', 'children': [
+                    ('Notebook.label', {'side': 'top', 'sticky': ''})
+                ]})
+            ]})
+        ])
         self.style.configure('TNotebook.Tab',
             background=c['bg_tertiary'],
             foreground=c['fg'],
-            padding=(16, 8),
-            font=('Segoe UI', 10)
+            padding=(18, 10),
+            font=('Segoe UI', 10),
+            borderwidth=0,
+            bordercolor=c['bg'],
+            lightcolor=c['bg'],
+            darkcolor=c['bg'],
+            focuscolor=c['bg']
         )
         self.style.map('TNotebook.Tab',
             background=[('selected', c['bg_secondary'])],
-            foreground=[('selected', c['accent'])]
+            foreground=[('selected', c['accent'])],
+            expand=[('selected', [0, 0, 0, 0])],
+            bordercolor=[('selected', c['bg']), ('!selected', c['bg'])],
+            lightcolor=[('selected', c['bg']), ('!selected', c['bg'])],
+            darkcolor=[('selected', c['bg']), ('!selected', c['bg'])],
+            focuscolor=[('selected', c['bg']), ('!selected', c['bg'])]
         )
         
         # PanedWindow
         self.style.configure('TPanedwindow', background=c['bg'])
         
-        # Scrollbar - thin modern style
-        self.style.configure('Vertical.TScrollbar',
-            background=c['bg_tertiary'],
-            troughcolor=c['bg_secondary'],
-            borderwidth=0,
-            arrowsize=0,
-            width=10
-        )
-        self.style.map('Vertical.TScrollbar',
-            background=[('active', c['fg_secondary'])]
+        # Status bar - subtle top border only
+        self.style.configure('Status.TLabel',
+            background=c['bg'],
+            foreground=c['fg_secondary'],
+            font=('Segoe UI', 9),
+            padding=(5, 8, 5, 5)
         )
         
-        # Separator
-        self.style.configure('TSeparator', background=c['border'])
+        # Scrollbar - sleek modern style matching the theme
+        self.style.configure('Vertical.TScrollbar',
+            background=c['button_bg'],
+            troughcolor=c['bg'],
+            borderwidth=0,
+            width=8,
+            relief='flat'
+        )
+        self.style.map('Vertical.TScrollbar',
+            background=[('active', c['accent']), ('pressed', c['accent_hover']), ('!active', c['button_active'])]
+        )
+        
+        # Minimal scrollbar - just thumb, no arrows
+        self.style.layout('Vertical.TScrollbar', [
+            ('Vertical.Scrollbar.trough', {
+                'sticky': 'ns',
+                'children': [
+                    ('Vertical.Scrollbar.thumb', {'expand': True, 'sticky': 'nswe'})
+                ]
+            })
+        ])
+        
+        # Separator - subtle line
+        self.style.configure('TSeparator', background=c['bg_tertiary'])
+    
+    def _create_scrolled_text(self, parent, height=4, **kwargs):
+        """Create a text widget with auto-hiding scrollbar."""
+        # Container frame
+        frame = ttk.Frame(parent)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+        
+        # Text widget
+        text = tk.Text(frame, height=height, wrap=tk.WORD, font=('Consolas', 10),
+                       bg=self.colors['text_bg'], fg=self.colors['fg'],
+                       insertbackground=self.colors['fg'], relief='flat', borderwidth=0,
+                       highlightbackground=self.colors['text_border'], highlightthickness=1,
+                       selectbackground=self.colors['accent'], selectforeground='#ffffff',
+                       cursor='arrow', **kwargs)
+        text.grid(row=0, column=0, sticky='nsew')
+        
+        # Scrollbar (initially hidden)
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=text.yview)
+        text.configure(yscrollcommand=lambda *args: self._autohide_scrollbar(scrollbar, *args))
+        
+        return frame, text
+    
+    def _autohide_scrollbar(self, scrollbar, first, last):
+        """Show scrollbar only when needed."""
+        first, last = float(first), float(last)
+        if first <= 0.0 and last >= 1.0:
+            scrollbar.grid_remove()
+        else:
+            scrollbar.grid(row=0, column=1, sticky='ns')
+        scrollbar.set(first, last)
     
     def _set_app_icon(self):
         """Set the application icon."""
@@ -338,7 +413,7 @@ class SDMetaViewer(tk.Tk):
         toolbar_row1.pack(fill=tk.X)
         
         # === File Operations Group ===
-        ttk.Button(toolbar_row1, text="📂 Open", command=self._open_file, width=10).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(toolbar_row1, text="🖼 Open Image", command=self._open_file, width=15).pack(side=tk.LEFT, padx=4)
         ttk.Button(toolbar_row1, text="📁 Folder", command=self._open_folder, width=10).pack(side=tk.LEFT, padx=4)
         ttk.Button(toolbar_row1, text="📋 Paste", command=self._paste_from_clipboard, width=10).pack(side=tk.LEFT, padx=4)
         
@@ -359,7 +434,7 @@ class SDMetaViewer(tk.Tk):
         
         # === Current Image Actions ===
         ttk.Button(toolbar_row1, text="📍 Show in Explorer", command=self._show_in_explorer, width=18).pack(side=tk.LEFT, padx=4)
-        ttk.Button(toolbar_row1, text="✖ Close Image", command=self._close_current, width=14).pack(side=tk.LEFT, padx=4)
+        ttk.Button(toolbar_row1, text="✕ Close Image", command=self._close_current, width=14).pack(side=tk.LEFT, padx=4)
         
         # === Status on the right ===
         self.history_label = ttk.Label(toolbar_row1, text="", style='Secondary.TLabel')
@@ -376,8 +451,11 @@ class SDMetaViewer(tk.Tk):
         
         # Status bar (row 2) - at bottom, never hidden
         self.status_var = tk.StringVar(value="Ready – Open an image or drag and drop to view metadata")
-        status_bar = ttk.Label(self.main_frame, textvariable=self.status_var, relief='sunken', anchor='w')
-        status_bar.grid(row=2, column=0, sticky='ew', pady=(10, 0))
+        status_frame = ttk.Frame(self.main_frame)
+        status_frame.grid(row=2, column=0, sticky='ew', pady=(8, 0))
+        ttk.Separator(status_frame, orient=tk.HORIZONTAL).pack(fill=tk.X)
+        status_bar = ttk.Label(status_frame, textvariable=self.status_var, style='Status.TLabel', anchor='w')
+        status_bar.pack(fill=tk.X)
         
         # Grid view (initially hidden)
         self.grid_frame = None
@@ -418,9 +496,12 @@ class SDMetaViewer(tk.Tk):
         self.image_frame = ttk.Frame(self.image_canvas)
         self.canvas_window = self.image_canvas.create_window((0, 0), window=self.image_frame, anchor='nw')
         
-        self.image_label = ttk.Label(self.image_frame, text="🖼️\n\nDrag & Drop Image Here\nor\nClick 'Open Image'\n\nSupports PNG, JPG, WEBP",
+        self.image_label = ttk.Label(self.image_frame, text="",
                                       anchor="center", justify="center", font=('Segoe UI', 12))
         self.image_label.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Store placeholder items for cleanup
+        self._placeholder_items = []
         
         # Bind canvas resize
         self.image_canvas.bind('<Configure>', self._on_canvas_configure)
@@ -473,13 +554,8 @@ class SDMetaViewer(tk.Tk):
         ttk.Label(prompt_label_frame, text="Prompt:", style='Header.TLabel').pack(side=tk.LEFT)
         ttk.Button(prompt_label_frame, text="Copy", command=self._copy_prompt, width=6).pack(side=tk.RIGHT)
         
-        self.prompt_text = tk.Text(formatted_frame, height=4, wrap=tk.WORD, font=('Consolas', 10),
-                                    bg=self.colors['text_bg'], fg=self.colors['fg'],
-                                    insertbackground=self.colors['fg'], relief='flat', borderwidth=0,
-                                    highlightbackground=self.colors['text_border'], highlightthickness=1,
-                                    selectbackground=self.colors['accent'], selectforeground='#ffffff',
-                                    cursor='arrow')
-        self.prompt_text.grid(row=1, column=0, sticky='nsew', pady=(5, 10))
+        prompt_container, self.prompt_text = self._create_scrolled_text(formatted_frame, height=4)
+        prompt_container.grid(row=1, column=0, sticky='nsew', pady=(5, 10))
         self.prompt_text.configure(state='disabled')
         self._add_context_menu(self.prompt_text)
         
@@ -489,36 +565,17 @@ class SDMetaViewer(tk.Tk):
         ttk.Label(neg_label_frame, text="Negative Prompt:", style='Header.TLabel').pack(side=tk.LEFT)
         ttk.Button(neg_label_frame, text="Copy", command=self._copy_negative, width=6).pack(side=tk.RIGHT)
         
-        self.negative_text = tk.Text(formatted_frame, height=3, wrap=tk.WORD, font=('Consolas', 10),
-                                      bg=self.colors['text_bg'], fg=self.colors['fg'],
-                                      insertbackground=self.colors['fg'], relief='flat', borderwidth=0,
-                                      highlightbackground=self.colors['text_border'], highlightthickness=1,
-                                      selectbackground=self.colors['accent'], selectforeground='#ffffff',
-                                      cursor='arrow')
-        self.negative_text.grid(row=3, column=0, sticky='nsew', pady=(5, 10))
+        neg_container, self.negative_text = self._create_scrolled_text(formatted_frame, height=3)
+        neg_container.grid(row=3, column=0, sticky='nsew', pady=(5, 10))
         self.negative_text.configure(state='disabled')
         self._add_context_menu(self.negative_text)
         
         # Parameters section
         ttk.Label(formatted_frame, text="Parameters:", style='Header.TLabel').grid(row=4, column=0, sticky='w')
         
-        params_frame = ttk.Frame(formatted_frame)
-        params_frame.grid(row=5, column=0, sticky='nsew', pady=(5, 0))
-        params_frame.columnconfigure(0, weight=1)
-        params_frame.rowconfigure(0, weight=1)
-        
-        self.params_text = tk.Text(params_frame, height=4, wrap=tk.WORD, font=('Consolas', 10),
-                                    bg=self.colors['text_bg'], fg=self.colors['fg'],
-                                    insertbackground=self.colors['fg'], relief='flat', borderwidth=0,
-                                    highlightbackground=self.colors['text_border'], highlightthickness=1,
-                                    selectbackground=self.colors['accent'], selectforeground='#ffffff',
-                                    cursor='arrow')
-        self.params_text.grid(row=0, column=0, sticky='nsew')
+        params_container, self.params_text = self._create_scrolled_text(formatted_frame, height=4)
+        params_container.grid(row=5, column=0, sticky='nsew', pady=(5, 0))
         self.params_text.configure(state='disabled')
-        
-        params_scroll = ttk.Scrollbar(params_frame, orient=tk.VERTICAL, command=self.params_text.yview)
-        params_scroll.grid(row=0, column=1, sticky='ns')
-        self.params_text.configure(yscrollcommand=params_scroll.set)
         self._add_context_menu(self.params_text)
         
         # Raw metadata tab
@@ -527,18 +584,9 @@ class SDMetaViewer(tk.Tk):
         raw_frame.columnconfigure(0, weight=1)
         raw_frame.rowconfigure(0, weight=1)
         
-        self.raw_text = tk.Text(raw_frame, wrap=tk.WORD, font=('Consolas', 9),
-                                 bg=self.colors['text_bg'], fg=self.colors['fg'],
-                                 insertbackground=self.colors['fg'], relief='flat', borderwidth=0,
-                                 highlightbackground=self.colors['text_border'], highlightthickness=1,
-                                 selectbackground=self.colors['accent'], selectforeground='#ffffff',
-                                 cursor='arrow')
-        self.raw_text.grid(row=0, column=0, sticky='nsew')
-        self.raw_text.configure(state='disabled')
-        
-        raw_scroll = ttk.Scrollbar(raw_frame, orient=tk.VERTICAL, command=self.raw_text.yview)
-        raw_scroll.grid(row=0, column=1, sticky='ns')
-        self.raw_text.configure(yscrollcommand=raw_scroll.set)
+        raw_container, self.raw_text = self._create_scrolled_text(raw_frame, height=20)
+        raw_container.grid(row=0, column=0, sticky='nsew')
+        self.raw_text.configure(state='disabled', font=('Consolas', 9))
         self._add_context_menu(self.raw_text)
         
         # Tags view tab (easy to read)
@@ -547,18 +595,9 @@ class SDMetaViewer(tk.Tk):
         tags_frame.columnconfigure(0, weight=1)
         tags_frame.rowconfigure(0, weight=1)
         
-        self.tags_text = tk.Text(tags_frame, wrap=tk.WORD, font=('Segoe UI', 11),
-                                  bg=self.colors['text_bg'], fg=self.colors['fg'],
-                                  insertbackground=self.colors['fg'], relief='flat', borderwidth=0,
-                                  highlightbackground=self.colors['text_border'], highlightthickness=1,
-                                  selectbackground=self.colors['accent'], selectforeground='#ffffff',
-                                  cursor='arrow')
-        self.tags_text.grid(row=0, column=0, sticky='nsew')
-        self.tags_text.configure(state='disabled')
-        
-        tags_scroll = ttk.Scrollbar(tags_frame, orient=tk.VERTICAL, command=self.tags_text.yview)
-        tags_scroll.grid(row=0, column=1, sticky='ns')
-        self.tags_text.configure(yscrollcommand=tags_scroll.set)
+        tags_container, self.tags_text = self._create_scrolled_text(tags_frame, height=20)
+        tags_container.grid(row=0, column=0, sticky='nsew')
+        self.tags_text.configure(state='disabled', font=('Segoe UI', 11))
         self._add_context_menu(self.tags_text)
         
         # Configure text tag for tags view with theme colors
@@ -571,11 +610,109 @@ class SDMetaViewer(tk.Tk):
         self.tags_text.tag_configure('header_neg', font=('Segoe UI', 11, 'bold'), foreground=self.colors['tag_neg_fg'],
                                       spacing1=10, spacing3=5)
     
+    def _draw_placeholder(self):
+        """Draw a centered placeholder with rounded corners on the canvas."""
+        # Clear any existing placeholder items
+        self._clear_placeholder()
+        
+        # Hide the image frame
+        self.image_canvas.itemconfigure(self.canvas_window, state='hidden')
+        
+        # Get canvas size
+        canvas_width = self.image_canvas.winfo_width()
+        canvas_height = self.image_canvas.winfo_height()
+        
+        if canvas_width < 50 or canvas_height < 50:
+            return  # Canvas not ready yet
+        
+        # Placeholder box dimensions
+        box_width = min(280, canvas_width - 40)
+        box_height = min(200, canvas_height - 40)
+        
+        # Center position
+        x1 = (canvas_width - box_width) // 2
+        y1 = (canvas_height - box_height) // 2
+        x2 = x1 + box_width
+        y2 = y1 + box_height
+        
+        # Draw rounded rectangle using polygon approximation
+        radius = 12
+        c = self.colors
+        
+        # Create rounded rectangle path
+        points = [
+            x1 + radius, y1,
+            x2 - radius, y1,
+            x2, y1,
+            x2, y1 + radius,
+            x2, y2 - radius,
+            x2, y2,
+            x2 - radius, y2,
+            x1 + radius, y2,
+            x1, y2,
+            x1, y2 - radius,
+            x1, y1 + radius,
+            x1, y1,
+            x1 + radius, y1,
+        ]
+        
+        # Draw border rectangle with smooth=True for rounded look
+        rect_id = self.image_canvas.create_polygon(
+            points, smooth=True, splinesteps=12,
+            fill=c['bg_secondary'], outline=c['border'], width=2
+        )
+        self._placeholder_items.append(rect_id)
+        
+        # Draw icon (using unicode box drawing as fallback)
+        icon_y = y1 + 35
+        icon_id = self.image_canvas.create_text(
+            (x1 + x2) // 2, icon_y,
+            text="🖼", font=('Segoe UI Emoji', 24), fill=c['fg_secondary']
+        )
+        self._placeholder_items.append(icon_id)
+        
+        # Draw text lines
+        text_lines = [
+            "Drag & Drop Image Here",
+            "or",
+            "Click 'Open Image'",
+            "",
+            "Supports PNG, JPG, WEBP"
+        ]
+        
+        line_y = icon_y + 40
+        for i, line in enumerate(text_lines):
+            if line:
+                font_style = ('Segoe UI', 11) if i in [0, 2] else ('Segoe UI', 10)
+                text_id = self.image_canvas.create_text(
+                    (x1 + x2) // 2, line_y,
+                    text=line, font=font_style, fill=c['fg'] if i in [0, 2] else c['fg_secondary']
+                )
+                self._placeholder_items.append(text_id)
+            line_y += 22
+    
+    def _clear_placeholder(self):
+        """Remove placeholder items from canvas."""
+        for item_id in self._placeholder_items:
+            try:
+                self.image_canvas.delete(item_id)
+            except Exception:
+                pass
+        self._placeholder_items = []
+        
+        # Show the image frame again
+        self.image_canvas.itemconfigure(self.canvas_window, state='normal')
+    
     def _on_canvas_configure(self, event):
         """Handle canvas resize and center the image."""
         # Get canvas and frame dimensions
         canvas_width = event.width
         canvas_height = event.height
+        
+        # If no image loaded, show placeholder
+        if not self.current_image_path:
+            self._draw_placeholder()
+            return
         
         # Get frame size
         frame_width = self.image_frame.winfo_reqwidth()
@@ -660,16 +797,19 @@ class SDMetaViewer(tk.Tk):
         canvas_frame = ttk.Frame(self.grid_frame)
         canvas_frame.pack(fill=tk.BOTH, expand=True)
         
-        canvas = tk.Canvas(canvas_frame, bg=self.colors['bg'], highlightthickness=0)
-        scrollbar = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=canvas.yview)
-        
-        self.grid_inner_frame = ttk.Frame(canvas)
-        
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
+        # Create scrollbar first
+        scrollbar = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Create canvas and link to scrollbar
+        canvas = tk.Canvas(canvas_frame, bg=self.colors['bg'], highlightthickness=0,
+                          yscrollcommand=scrollbar.set)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
+        # Configure scrollbar to control canvas
+        scrollbar.configure(command=canvas.yview)
+        
+        self.grid_inner_frame = ttk.Frame(canvas)
         canvas_window = canvas.create_window((0, 0), window=self.grid_inner_frame, anchor='nw')
         
         # Bind mouse wheel
@@ -677,12 +817,25 @@ class SDMetaViewer(tk.Tk):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         canvas.bind_all("<MouseWheel>", on_mousewheel)
         
-        # Update scroll region when frame changes
+        # Track last width to avoid unnecessary reloads
+        self._grid_last_cols = 0
+        
+        # Update scroll region and re-layout on resize
         def configure_scroll(event):
             canvas.configure(scrollregion=canvas.bbox("all"))
             canvas.itemconfig(canvas_window, width=event.width)
+            # Check if we need to re-layout due to column count change
+            thumb_total = 170  # thumbnail + padding
+            new_cols = max(1, event.width // thumb_total)
+            if new_cols != self._grid_last_cols and self._grid_last_cols > 0:
+                self._grid_last_cols = new_cols
+                self._relayout_grid(new_cols)
+        
         self.grid_inner_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind('<Configure>', configure_scroll)
+        
+        # Store canvas reference for dynamic resizing (before loading thumbnails)
+        self._grid_canvas = canvas
         
         # Load thumbnails
         self.status_var.set("Loading thumbnails...")
@@ -693,10 +846,24 @@ class SDMetaViewer(tk.Tk):
     def _load_grid_thumbnails(self):
         """Load thumbnails for the grid view."""
         self.grid_thumbnails = []
+        self._grid_thumb_frames = []  # Store frames for re-layout
         
-        # Calculate grid columns based on window width
-        cols = 4
+        # Calculate grid columns based on available width - use window width
+        self.update_idletasks()
+        # Get actual available width from the grid frame or window
+        canvas_width = self.winfo_width() - 40  # Window width minus some padding
+        if hasattr(self, '_grid_canvas') and self._grid_canvas.winfo_exists():
+            try:
+                cw = self._grid_canvas.winfo_width()
+                if cw > 100:
+                    canvas_width = cw
+            except Exception:
+                pass
+        
         thumb_size = 150
+        thumb_total = thumb_size + 20  # thumbnail + padding
+        cols = max(1, canvas_width // thumb_total)
+        self._grid_last_cols = cols
         
         for i, filepath in enumerate(self.folder_images):
             row = i // cols
@@ -705,6 +872,7 @@ class SDMetaViewer(tk.Tk):
             # Create frame for each thumbnail
             thumb_frame = ttk.Frame(self.grid_inner_frame, padding=5)
             thumb_frame.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
+            self._grid_thumb_frames.append(thumb_frame)
             
             try:
                 # Load and resize thumbnail
@@ -736,6 +904,16 @@ class SDMetaViewer(tk.Tk):
             # Update UI periodically
             if i % 10 == 0:
                 self.update_idletasks()
+    
+    def _relayout_grid(self, cols: int):
+        """Re-layout the grid with a new number of columns."""
+        if not hasattr(self, '_grid_thumb_frames'):
+            return
+        
+        for i, frame in enumerate(self._grid_thumb_frames):
+            row = i // cols
+            col = i % cols
+            frame.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
     
     def _select_from_grid(self, filepath: str):
         """Select an image from the grid view."""
@@ -836,6 +1014,9 @@ class SDMetaViewer(tk.Tk):
                 self.paned.sashpos(0, int(total_width * 0.40))
         except:
             pass
+        
+        # Draw initial placeholder
+        self.after(100, self._draw_placeholder)
     
     def _toggle_grid_view(self):
         """Toggle between grid view and image viewer."""
@@ -991,7 +1172,7 @@ class SDMetaViewer(tk.Tk):
         
         # Reset UI
         self.filename_label.configure(text="")
-        self.image_label.configure(image='', text="🖼️\n\nDrag & Drop Image Here\nor\nClick 'Open Image'\n\nSupports PNG, JPG, WEBP")
+        self.image_label.configure(image='', text="")
         self.image_info_label.configure(text="")
         self.source_label.configure(text="No image loaded")
         self._set_text(self.prompt_text, "")
@@ -1003,6 +1184,9 @@ class SDMetaViewer(tk.Tk):
         self.tags_text.configure(state='disabled')
         self.history_label.configure(text="")
         self.status_var.set("Ready – Open an image or drag and drop to view metadata")
+        
+        # Draw placeholder
+        self._draw_placeholder()
     
     def _load_image(self, filepath: str):
         """Load an image and extract its metadata."""
@@ -1135,6 +1319,9 @@ class SDMetaViewer(tk.Tk):
     def _display_image(self, filepath: str):
         """Display the image in the scrollable canvas."""
         try:
+            # Clear placeholder
+            self._clear_placeholder()
+            
             # Update filename label
             filename = os.path.basename(filepath)
             self.filename_label.configure(text=filename)
