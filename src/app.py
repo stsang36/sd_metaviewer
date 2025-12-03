@@ -7,7 +7,7 @@ from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 import os
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any, cast
 
 # Windows-specific imports (cached at module level)
 try:
@@ -336,7 +336,9 @@ class SDMetaViewer(tk.Tk):
         )
         
         # Minimal scrollbar - just thumb, no arrows
-        self.style.layout('Vertical.TScrollbar', [
+        # Cast to Any to avoid type-checker errors since typeshed may declare layoutspec as None.
+        style_any = cast(Any, self.style)
+        style_any.layout('Vertical.TScrollbar', [
             ('Vertical.Scrollbar.trough', {
                 'sticky': 'ns',
                 'children': [
@@ -752,13 +754,7 @@ class SDMetaViewer(tk.Tk):
         """Handle paned window sash release to resize/recenter image."""
         # Schedule an update after the layout has settled
         self.after(10, self._refresh_image_display)
-    
-    def _refresh_image_display(self):
-        """Refresh the image display after pane resize."""
-        if self.current_metadata and self.current_image_path:
-            # Re-display the current image to fit new pane size
-            self._display_image(self.current_image_path)
-    
+
     def _center_image(self):
         """Center the image frame in the canvas."""
         canvas_width = self.image_canvas.winfo_width()
@@ -1033,9 +1029,17 @@ class SDMetaViewer(tk.Tk):
             
         # Use tkinterdnd2 if available, otherwise use Windows-specific method
         try:
-            self.drop_target_register('DND_Files')
-            self.dnd_bind('<<Drop>>', self._on_drop)
-        except:
+            # Use getattr to avoid static attribute access errors when tkinterdnd2
+            # is not present or the widget type doesn't expose these members.
+            drop_register = getattr(self, 'drop_target_register', None)
+            dnd_bind = getattr(self, 'dnd_bind', None)
+            if callable(drop_register) and callable(dnd_bind):
+                drop_register('DND_Files')
+                dnd_bind('<<Drop>>', self._on_drop)
+            else:
+                # Raise to go into fallback behavior below
+                raise AttributeError("Drag-and-drop methods not available")
+        except Exception:
             # Fallback: bind to file open on click
             self.image_label.bind('<Button-1>', lambda e: self._open_file())
             
