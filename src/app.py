@@ -6,6 +6,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 import os
+import sys
+import platform
+import subprocess
 from pathlib import Path
 from typing import Optional, Dict, List
 
@@ -16,7 +19,7 @@ try:
 except ImportError:
     _HAS_WINREG = False
 
-# Enable DPI awareness for crisp display on high-res screens
+# Enable DPI awareness for crisp display on high-res screens (Windows only)
 try:
     import ctypes
     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
@@ -31,19 +34,37 @@ from .utils import create_app_icon, save_icon_file
 
 
 def is_dark_mode() -> bool:
-    """Detect if Windows is using dark mode."""
-    if not _HAS_WINREG:
-        return False
-    try:
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-        )
-        value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-        winreg.CloseKey(key)
-        return value == 0
-    except Exception:
-        return False
+    """Detect if system is using dark mode (Windows and macOS)."""
+    system = platform.system()
+    
+    # Windows dark mode detection
+    if system == "Windows" and _HAS_WINREG:
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+            )
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            winreg.CloseKey(key)
+            return value == 0
+        except Exception:
+            return False
+    
+    # macOS dark mode detection
+    elif system == "Darwin":
+        try:
+            result = subprocess.run(
+                ['defaults', 'read', '-g', 'AppleInterfaceStyle'],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+            return result.returncode == 0 and 'Dark' in result.stdout
+        except Exception:
+            return False
+    
+    # Default for other systems (Linux, etc.)
+    return False
 
 
 # Theme colors - defined once at module level for performance
