@@ -16,6 +16,16 @@ try:
 except ImportError:
     _HAS_WINREG = False
 
+# Enable DPI awareness for crisp display on high-res screens
+try:
+    import ctypes
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()  # Fallback for older Windows
+    except Exception:
+        pass
+
 from .extractor import ImageMetadataExtractor
 from .utils import create_app_icon, save_icon_file
 
