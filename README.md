@@ -13,14 +13,12 @@ A lightweight, native Windows application for viewing metadata from AI-generated
 - **⏮️ History Navigation** - Browse through previously viewed images
 - **🕒 Recent Images** - Quick access to recently viewed images
 - **🌙 Dark Mode** - Automatically follows Windows theme (light/dark)
-- **📱 Native UI** - Clean, modern Windows look and feel
-- **⚡ Fast Loading** - Loads metadata in milliseconds
 - **🎨 Right-Click Menus** - Context menus for copy/paste operations
 - **📋 Clipboard Paste** - Paste images directly from clipboard
 - **🔎 Model Detection** - Detects model architecture (SDXL, Flux, Pony, Illustrious, etc.)
 - **📷 Camera Info** - Displays EXIF data (camera, lens, exposure, GPS location)
 - **🤖 AI Detection** - Identifies images from ChatGPT/OpenAI, Google Gemini
-- **🎨 Editing Detection** - Detects if images were edited with Photoshop, GIMP, etc.
+- **🎨 Editing Detection** - Detects if images were edited with Photoshop, GIMP, etc. (Based on Metadata)
 
 ## Supported Formats
 
@@ -35,16 +33,6 @@ A lightweight, native Windows application for viewing metadata from AI-generated
 - **Camera EXIF** - Make, model, lens, exposure settings, GPS location
 - **Editing Software** - Adobe Photoshop, Lightroom, GIMP, Affinity Photo, and more
 - **Generic PNG/JPEG/WebP** - Any embedded text metadata
-
-## Model Architecture Detection
-
-Automatically detects and displays:
-- Flux.1 Dev / Schnell
-- SDXL
-- Pony Diffusion
-- Illustrious XL
-- SD 1.5 / SD 2.1 / SD 3
-- Cascade, PixArt, AuraFlow, and more
 
 ## Project Structure
 
@@ -144,13 +132,6 @@ For photos, SD MetaViewer displays:
 - 📅 Date taken
 - 👤 Artist and copyright info
 
-## Size & Performance
-
-- **Application Size**: ~50 KB (Python scripts)
-- **Dependencies**: ~5 MB (Pillow)
-- **Compiled Size**: ~15 MB (single exe)
-- **Launch Time**: < 1 second
-- **Metadata Loading**: < 100ms
 
 ## License
 
