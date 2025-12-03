@@ -530,7 +530,7 @@ class SDMetaViewer(tk.Tk):
         
         # Tags view tab (easy to read)
         tags_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(tags_frame, text="🏷️ Tags View")
+        self.notebook.add(tags_frame, text="🔖 Tags View")
         tags_frame.columnconfigure(0, weight=1)
         tags_frame.rowconfigure(0, weight=1)
         
@@ -1258,28 +1258,49 @@ class SDMetaViewer(tk.Tk):
         prompt = parsed.get("prompt", "")
         if prompt:
             self.tags_text.insert('end', "Prompt Tags:\n", 'header')
-            # Split by common delimiters (comma, newline)
             import re
-            tags = re.split(r',|\n', prompt)
-            for tag in tags:
-                tag = tag.strip()
-                if tag:
-                    # Insert tag with styling
-                    self.tags_text.insert('end', "  ")
-                    self.tags_text.insert('end', tag, 'tag')
-                    self.tags_text.insert('end', "\n")
+            
+            # Check if it's comma-separated tags or natural language
+            comma_count = prompt.count(',')
+            word_count = len(prompt.split())
+            
+            # If few commas relative to words, treat as natural language (Flux/SD3 style)
+            if comma_count < 3 or (word_count > 10 and comma_count < word_count / 5):
+                # Natural language - display as wrapped text without splitting
+                self.tags_text.insert('end', " ")
+                self.tags_text.insert('end', prompt.strip(), 'tag')
+                self.tags_text.insert('end', "\n")
+            else:
+                # Comma-separated tags (A1111/NovelAI style) - split and display each
+                tags = re.split(r',|\n', prompt)
+                for tag in tags:
+                    tag = tag.strip()
+                    if tag:
+                        self.tags_text.insert('end', " ")
+                        self.tags_text.insert('end', tag, 'tag')
+                        self.tags_text.insert('end', "\n")
             self.tags_text.insert('end', "\n")
         
         negative = parsed.get("negative_prompt", "")
         if negative:
             self.tags_text.insert('end', "Negative Tags:\n", 'header_neg')
-            tags = re.split(r',|\n', negative)
-            for tag in tags:
-                tag = tag.strip()
-                if tag:
-                    self.tags_text.insert('end', "  ")
-                    self.tags_text.insert('end', tag, 'tag_neg')
-                    self.tags_text.insert('end', "\n")
+            import re
+            
+            comma_count = negative.count(',')
+            word_count = len(negative.split())
+            
+            if comma_count < 3 or (word_count > 10 and comma_count < word_count / 5):
+                self.tags_text.insert('end', " ")
+                self.tags_text.insert('end', negative.strip(), 'tag_neg')
+                self.tags_text.insert('end', "\n")
+            else:
+                tags = re.split(r',|\n', negative)
+                for tag in tags:
+                    tag = tag.strip()
+                    if tag:
+                        self.tags_text.insert('end', " ")
+                        self.tags_text.insert('end', tag, 'tag_neg')
+                        self.tags_text.insert('end', "\n")
         
         self.tags_text.configure(state='disabled')
     
