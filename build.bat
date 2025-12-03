@@ -30,6 +30,7 @@ echo.
 pyinstaller --noconfirm --onefile --windowed ^
     --name "SD MetaViewer" ^
     --add-data "src;src" ^
+    --optimize 2 ^
     --hidden-import PIL ^
     --hidden-import PIL.Image ^
     --hidden-import PIL.ImageTk ^
