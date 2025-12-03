@@ -337,19 +337,15 @@ class SDMetaViewer(tk.Tk):
         toolbar_row1 = ttk.Frame(toolbar_container)
         toolbar_row1.pack(fill=tk.X)
         
-        ttk.Button(toolbar_row1, text="🖼 Open Image", command=self._open_file).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(toolbar_row1, text="📁 Open Folder", command=self._open_folder).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar_row1, text="📋 Paste", command=self._paste_from_clipboard).pack(side=tk.LEFT, padx=5)
+        # === File Operations Group ===
+        ttk.Button(toolbar_row1, text="📂 Open", command=self._open_file, width=10).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(toolbar_row1, text="📁 Folder", command=self._open_folder, width=10).pack(side=tk.LEFT, padx=4)
+        ttk.Button(toolbar_row1, text="📋 Paste", command=self._paste_from_clipboard, width=10).pack(side=tk.LEFT, padx=4)
         
-        ttk.Separator(toolbar_row1, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=10, fill=tk.Y)
+        ttk.Separator(toolbar_row1, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=12, fill=tk.Y)
         
-        ttk.Button(toolbar_row1, text="◀ Prev", command=self._prev_image, width=8).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar_row1, text="Next ▶", command=self._next_image, width=8).pack(side=tk.LEFT, padx=5)
-        
-        ttk.Separator(toolbar_row1, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=10, fill=tk.Y)
-        
-        # Recent images dropdown
-        self.recent_btn = ttk.Menubutton(toolbar_row1, text="🕒 Recent")
+        # === History Group ===
+        self.recent_btn = ttk.Menubutton(toolbar_row1, text="🕒 Recent", width=12)
         self.recent_menu = tk.Menu(self.recent_btn, tearoff=0,
                                    bg=self.colors['bg_secondary'], fg=self.colors['fg'],
                                    activebackground=self.colors['accent'], activeforeground='#ffffff',
@@ -357,14 +353,17 @@ class SDMetaViewer(tk.Tk):
                                    relief='flat', borderwidth=1,
                                    activeborderwidth=0)
         self.recent_btn['menu'] = self.recent_menu
-        self.recent_btn.pack(side=tk.LEFT, padx=5)
+        self.recent_btn.pack(side=tk.LEFT, padx=4)
         
-        ttk.Button(toolbar_row1, text="❌ Close", command=self._close_current).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar_row1, text="📂 Explorer", command=self._show_in_explorer).pack(side=tk.LEFT, padx=5)
+        ttk.Separator(toolbar_row1, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=12, fill=tk.Y)
         
-        # Status label on same row
-        self.history_label = ttk.Label(toolbar_row1, text="No image loaded")
-        self.history_label.pack(side=tk.LEFT, padx=20)
+        # === Current Image Actions ===
+        ttk.Button(toolbar_row1, text="📍 Show in Explorer", command=self._show_in_explorer, width=18).pack(side=tk.LEFT, padx=4)
+        ttk.Button(toolbar_row1, text="✖ Close Image", command=self._close_current, width=14).pack(side=tk.LEFT, padx=4)
+        
+        # === Status on the right ===
+        self.history_label = ttk.Label(toolbar_row1, text="", style='Secondary.TLabel')
+        self.history_label.pack(side=tk.RIGHT, padx=(20, 0))
         
         # Content area (row 1) - will hold either the main view or grid view
         self.content_frame = ttk.Frame(self.main_frame)
@@ -376,7 +375,7 @@ class SDMetaViewer(tk.Tk):
         self._create_viewer_pane()
         
         # Status bar (row 2) - at bottom, never hidden
-        self.status_var = tk.StringVar(value="Ready - Drag and drop an image to view metadata")
+        self.status_var = tk.StringVar(value="Ready – Open an image or drag and drop to view metadata")
         status_bar = ttk.Label(self.main_frame, textvariable=self.status_var, relief='sunken', anchor='w')
         status_bar.grid(row=2, column=0, sticky='ew', pady=(10, 0))
         
@@ -390,17 +389,24 @@ class SDMetaViewer(tk.Tk):
         self.paned = ttk.PanedWindow(self.content_frame, orient=tk.HORIZONTAL)
         self.paned.grid(row=0, column=0, sticky='nsew')
         
+        # Bind to sash release to update image when divider is moved
+        self.paned.bind('<ButtonRelease-1>', self._on_paned_release)
+        
         # Left panel - Image preview (with scrollable container)
         left_frame = ttk.Frame(self.paned, padding="5")
         self.paned.add(left_frame, weight=1)
         
         # Configure left frame to expand
         left_frame.columnconfigure(0, weight=1)
-        left_frame.rowconfigure(0, weight=1)
+        left_frame.rowconfigure(1, weight=1)  # Image container row expands
+        
+        # Image filename label (above image)
+        self.filename_label = ttk.Label(left_frame, text="", style='Title.TLabel', anchor='center')
+        self.filename_label.grid(row=0, column=0, sticky='ew', pady=(0, 5))
         
         # Scrollable image container
         image_container = ttk.Frame(left_frame)
-        image_container.grid(row=0, column=0, sticky='nsew')
+        image_container.grid(row=1, column=0, sticky='nsew')
         image_container.columnconfigure(0, weight=1)
         image_container.rowconfigure(0, weight=1)
         
@@ -422,7 +428,14 @@ class SDMetaViewer(tk.Tk):
         
         # Image info
         self.image_info_label = ttk.Label(left_frame, text="", anchor="center")
-        self.image_info_label.grid(row=1, column=0, sticky='ew', pady=(5, 0))
+        self.image_info_label.grid(row=2, column=0, sticky='ew', pady=(5, 0))
+        
+        # Navigation buttons under the image
+        nav_frame = ttk.Frame(left_frame)
+        nav_frame.grid(row=3, column=0, sticky='ew', pady=(5, 0))
+        
+        ttk.Button(nav_frame, text="◀ Previous", command=self._prev_image, width=12).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(nav_frame, text="Next ▶", command=self._next_image, width=12).pack(side=tk.RIGHT, padx=(10, 0))
         
         # Right panel - Metadata display
         right_frame = ttk.Frame(self.paned, padding="5")
@@ -597,6 +610,17 @@ class SDMetaViewer(tk.Tk):
         
         # Update scroll region
         self.image_canvas.configure(scrollregion=self.image_canvas.bbox("all"))
+    
+    def _on_paned_release(self, event):
+        """Handle paned window sash release to resize/recenter image."""
+        # Schedule an update after the layout has settled
+        self.after(10, self._refresh_image_display)
+    
+    def _refresh_image_display(self):
+        """Refresh the image display after pane resize."""
+        if self.current_metadata and self.current_image_path:
+            # Re-display the current image to fit new pane size
+            self._display_image(self.current_image_path)
     
     def _center_image(self):
         """Center the image frame in the canvas."""
@@ -966,6 +990,7 @@ class SDMetaViewer(tk.Tk):
         self.history_index = -1
         
         # Reset UI
+        self.filename_label.configure(text="")
         self.image_label.configure(image='', text="🖼️\n\nDrag & Drop Image Here\nor\nClick 'Open Image'\n\nSupports PNG, JPG, WEBP")
         self.image_info_label.configure(text="")
         self.source_label.configure(text="No image loaded")
@@ -976,8 +1001,8 @@ class SDMetaViewer(tk.Tk):
         self.tags_text.configure(state='normal')
         self.tags_text.delete('1.0', 'end')
         self.tags_text.configure(state='disabled')
-        self.history_label.configure(text="No image loaded")
-        self.status_var.set("Ready - Drag and drop an image to view metadata")
+        self.history_label.configure(text="")
+        self.status_var.set("Ready – Open an image or drag and drop to view metadata")
     
     def _load_image(self, filepath: str):
         """Load an image and extract its metadata."""
@@ -1110,6 +1135,10 @@ class SDMetaViewer(tk.Tk):
     def _display_image(self, filepath: str):
         """Display the image in the scrollable canvas."""
         try:
+            # Update filename label
+            filename = os.path.basename(filepath)
+            self.filename_label.configure(text=filename)
+            
             with Image.open(filepath) as img:
                 # Get canvas size for scaling
                 self.update_idletasks()
@@ -1215,9 +1244,52 @@ class SDMetaViewer(tk.Tk):
         negative = parsed.get("negative_prompt", "")
         self._set_text(self.negative_text, negative)
         
-        # Update parameters
+        # Update parameters (including camera info)
         params = parsed.get("parameters", {})
-        params_text = "\n".join([f"{k}: {v}" for k, v in params.items() if v])
+        camera_info = parsed.get("camera_info", {})
+        
+        params_lines = []
+        
+        # Add camera info first if present
+        if camera_info:
+            if camera_info.get('camera'):
+                params_lines.append(f"📷 Camera: {camera_info['camera']}")
+            if camera_info.get('lens'):
+                params_lines.append(f"🔭 Lens: {camera_info['lens']}")
+            if camera_info.get('exposure'):
+                params_lines.append(f"⚡ Exposure: {camera_info['exposure']}")
+            if camera_info.get('focal_length_35mm'):
+                params_lines.append(f"📐 Focal Length: {camera_info['focal_length_35mm']}")
+            if camera_info.get('flash'):
+                params_lines.append(f"💡 Flash: {camera_info['flash']}")
+            if camera_info.get('white_balance'):
+                params_lines.append(f"🎨 White Balance: {camera_info['white_balance']}")
+            if camera_info.get('metering_mode'):
+                params_lines.append(f"📊 Metering: {camera_info['metering_mode']}")
+            if camera_info.get('color_space'):
+                params_lines.append(f"🌈 Color Space: {camera_info['color_space']}")
+            if camera_info.get('date_taken'):
+                params_lines.append(f"📅 Date Taken: {camera_info['date_taken']}")
+            if camera_info.get('gps_coordinates'):
+                params_lines.append(f"📍 Location: {camera_info['gps_coordinates']}")
+            if camera_info.get('gps_altitude'):
+                params_lines.append(f"🏔️ Altitude: {camera_info['gps_altitude']}")
+            if camera_info.get('gps_maps_url'):
+                params_lines.append(f"🗺️ Map: {camera_info['gps_maps_url']}")
+            if camera_info.get('artist'):
+                params_lines.append(f"👤 Artist: {camera_info['artist']}")
+            if camera_info.get('copyright'):
+                params_lines.append(f"©️ Copyright: {camera_info['copyright']}")
+            
+            if params_lines and params:
+                params_lines.append("")  # Add separator
+        
+        # Add other parameters
+        for k, v in params.items():
+            if v:
+                params_lines.append(f"{k}: {v}")
+        
+        params_text = "\n".join(params_lines)
         self._set_text(self.params_text, params_text if params_text else "No parameters found")
         
         # Update raw metadata
@@ -1389,14 +1461,14 @@ class SDMetaViewer(tk.Tk):
             current = self.folder_index + 1
             total = len(self.folder_images)
             folder_name = os.path.basename(self.current_folder)
-            self.history_label.configure(text=f"📁 {folder_name}: {filename} ({current}/{total}) [Grid: F5]")
+            self.history_label.configure(text=f"📁 {folder_name}  •  Image {current} of {total}  •  Press F5 for Grid View")
         elif self.image_history:
             # History mode
             current = self.history_index + 1
             total = len(self.image_history)
-            self.history_label.configure(text=f"{filename} ({current}/{total})")
+            self.history_label.configure(text=f"Image {current} of {total}")
         else:
-            self.history_label.configure(text="No image loaded")
+            self.history_label.configure(text="")
 
 
 def main():

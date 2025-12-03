@@ -1,6 +1,6 @@
 # SD MetaViewer
 
-A lightweight, native Windows application for viewing metadata from AI-generated images (Stable Diffusion, NovelAI, ComfyUI, etc.). This project was mostly done using Claude Opus 4.5 available in GitHub Copilot. 
+A lightweight, native Windows application for viewing metadata from AI-generated images (Stable Diffusion, NovelAI, ComfyUI, etc.) and photos. This project was mostly done using Claude Opus 4.5 available in GitHub Copilot. 
 
 ![alt-text](examples/screenshot1.png "Main Program in Dark Mode")
 
@@ -18,13 +18,23 @@ A lightweight, native Windows application for viewing metadata from AI-generated
 - **🎨 Right-Click Menus** - Context menus for copy/paste operations
 - **📋 Clipboard Paste** - Paste images directly from clipboard
 - **🔎 Model Detection** - Detects model architecture (SDXL, Flux, Pony, Illustrious, etc.)
+- **📷 Camera Info** - Displays EXIF data (camera, lens, exposure, GPS location)
+- **🤖 AI Detection** - Identifies images from ChatGPT/OpenAI, Google Gemini
+- **🎨 Editing Detection** - Detects if images were edited with Photoshop, GIMP, etc.
 
 ## Supported Formats
 
+### AI Image Generators
 - **AUTOMATIC1111 / Stable Diffusion WebUI** - Full parameter extraction
 - **ComfyUI** - Workflow and node parsing (including z-image prefix detection)
 - **NovelAI** - Comment and description metadata
-- **Generic PNG/JPEG** - Any embedded text metadata
+- **ChatGPT / OpenAI** - DALL-E and GPT-4o generated images (via C2PA metadata)
+- **Google Gemini** - AI-generated images (via XMP metadata)
+
+### Photos & Edited Images
+- **Camera EXIF** - Make, model, lens, exposure settings, GPS location
+- **Editing Software** - Adobe Photoshop, Lightroom, GIMP, Affinity Photo, and more
+- **Generic PNG/JPEG/WebP** - Any embedded text metadata
 
 ## Model Architecture Detection
 
@@ -106,8 +116,9 @@ Creates: `dist/SD MetaViewer/SD MetaViewer.exe`
    - Right-click on any text area for context menu
 
 5. **Navigate**:
-   - Use "Prev" / "Next" buttons or arrow keys
-   - Use "Recent" menu for quick access
+   - Use "Previous" / "Next" buttons below the image
+   - Use arrow keys (← / →) for quick navigation
+   - Use "Recent" menu for quick access to history
    - Press F5 to toggle grid view in folder mode
 
 ## Keyboard Shortcuts
@@ -120,6 +131,18 @@ Creates: `dist/SD MetaViewer/SD MetaViewer.exe`
 | ← / → | Navigate previous/next |
 | F5 | Toggle grid view |
 | Escape | Close grid view |
+
+## Camera & Photo Metadata
+
+For photos, SD MetaViewer displays:
+- 📷 Camera make and model
+- 🔭 Lens information
+- ⚡ Exposure settings (shutter speed, aperture, ISO, focal length)
+- 💡 Flash mode
+- 🎨 White balance and color space
+- 📍 GPS location with Google Maps link
+- 📅 Date taken
+- 👤 Artist and copyright info
 
 ## Size & Performance
 
