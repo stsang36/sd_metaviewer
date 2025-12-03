@@ -1,6 +1,6 @@
 # SD MetaViewer
 
-A lightweight, native Windows application for viewing metadata from AI-generated images (Stable Diffusion, NovelAI, ComfyUI, etc.). This project was mostly done using Claude Opus 4.5 available in GitHub Copilot. 
+A lightweight, cross-platform application for viewing metadata from AI-generated images (Stable Diffusion, NovelAI, ComfyUI, etc.). Works on Windows, macOS, and Linux. This project was mostly done using Claude Opus 4.5 available in GitHub Copilot. 
 
 ![alt-text](examples/screenshot1.png "Main Program in Dark Mode")
 
@@ -12,8 +12,8 @@ A lightweight, native Windows application for viewing metadata from AI-generated
 - **📁 Folder Browsing** - Browse images in a folder with grid view
 - **⏮️ History Navigation** - Browse through previously viewed images
 - **🕒 Recent Images** - Quick access to recently viewed images
-- **🌙 Dark Mode** - Automatically follows Windows theme (light/dark)
-- **📱 Native UI** - Clean, modern Windows look and feel
+- **🌙 Dark Mode** - Automatically follows system theme (Windows and macOS)
+- **📱 Native UI** - Clean, modern look and feel
 - **⚡ Fast Loading** - Loads metadata in milliseconds
 - **🎨 Right-Click Menus** - Context menus for copy/paste operations
 - **📋 Clipboard Paste** - Paste images directly from clipboard
@@ -47,9 +47,11 @@ sd_metaviewer/
 │   ├── parsers.py          # Metadata format parsers
 │   └── utils.py            # Utility functions
 ├── run.py                  # Main entry point
-├── build.bat               # Build single executable
-├── build_folder.bat        # Build folder distribution
-├── Run_SDMetaViewer.bat    # Run from source
+├── run.sh                  # Run script (macOS/Linux)
+├── build.sh                # Build script (macOS/Linux)
+├── build.bat               # Build single executable (Windows)
+├── build_folder.bat        # Build folder distribution (Windows)
+├── Run_SDMetaViewer.bat    # Run from source (Windows)
 ├── requirements.txt        # Python dependencies
 ├── pyproject.toml          # Project configuration
 └── README.md               # This file
@@ -59,18 +61,31 @@ sd_metaviewer/
 
 - Python 3.8+
 - Pillow (image processing)
+- tkinter (usually included with Python, on Linux: `python3-tk`)
 - windnd (drag-and-drop on Windows, optional)
 
 ## Installation
 
 ### From Source
 
+#### Windows
 1. Clone or download this folder
 2. Install dependencies: `pip install -r requirements.txt`
 3. Run: `python run.py` or double-click `Run_SDMetaViewer.bat`
 
+#### macOS
+1. Clone or download this folder
+2. Install dependencies: `pip3 install -r requirements.txt`
+3. Run: `python3 run.py` or `./run.sh`
+
+#### Linux
+1. Clone or download this folder
+2. Install dependencies: `sudo apt install python3-tk && pip3 install -r requirements.txt`
+3. Run: `python3 run.py` or `./run.sh`
+
 ### Building an Executable
 
+#### Windows
 **Single File (slower startup, easier to share):**
 ```batch
 build.bat
@@ -82,6 +97,32 @@ Creates: `dist/SD MetaViewer.exe`
 build_folder.bat
 ```
 Creates: `dist/SD MetaViewer/SD MetaViewer.exe`
+
+#### macOS / Linux
+**Single File:**
+```bash
+./build.sh
+```
+- macOS: Creates `dist/SD MetaViewer.app`
+- Linux: Creates `dist/SD MetaViewer`
+
+## Platform-Specific Notes
+
+### Windows
+- Drag and drop support via `windnd` package (automatically installed)
+- Automatic dark mode detection via Windows registry
+- Native Windows DPI awareness for high-resolution displays
+
+### macOS
+- Drag and drop support via tkinter's native DnD
+- Automatic dark mode detection via system preferences
+- Creates a native `.app` bundle with PyInstaller
+- Retina display support
+
+### Linux
+- Requires `python3-tk` package for tkinter support
+- Drag and drop support via tkinter's native DnD
+- No automatic dark mode detection (defaults to light theme)
 
 ## Usage
 
