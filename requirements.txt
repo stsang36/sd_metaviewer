@@ -1,0 +1,8 @@
+# Core dependencies
+Pillow>=9.0.0
+
+# Optional - Better drag and drop on Windows
+windnd>=1.0.0
+
+# For building executables (optional)
+# pyinstaller>=6.0.0
