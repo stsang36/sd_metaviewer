@@ -1,6 +1,6 @@
 # SD MetaViewer
 
-A lightweight, native Windows application for viewing metadata from AI-generated images (Stable Diffusion, NovelAI, ComfyUI, etc.).
+A lightweight, native Windows application for viewing metadata from AI-generated images (Stable Diffusion, NovelAI, ComfyUI, etc.). This project was mostly done using Claude Opus 4.5 available in GitHub Copilot. 
 
 ## Features
 
