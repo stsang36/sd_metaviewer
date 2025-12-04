@@ -1498,39 +1498,33 @@ class SDMetaViewer(tk.Tk):
         """Copy the current image to clipboard."""
         if self.current_image_path and os.path.exists(self.current_image_path):
             try:
-                import io
                 import subprocess
                 import platform
                 
                 if platform.system() == 'Windows':
-                    # Use PowerShell to copy image to clipboard on Windows
-                    img = Image.open(self.current_image_path)
-                    output = io.BytesIO()
-                    img.convert('RGB').save(output, 'BMP')
-                    data = output.getvalue()[14:]  # Remove BMP header
-                    output.close()
+                    # Use PowerShell to copy image to clipboard (safer than ctypes)
+                    abs_path = os.path.abspath(self.current_image_path)
+                    # Escape path for PowerShell
+                    escaped_path = abs_path.replace("'", "''")
                     
-                    import ctypes
-                    from ctypes import wintypes
+                    ps_command = f'''
+                    Add-Type -AssemblyName System.Windows.Forms
+                    $image = [System.Drawing.Image]::FromFile('{escaped_path}')
+                    [System.Windows.Forms.Clipboard]::SetImage($image)
+                    $image.Dispose()
+                    '''
                     
-                    CF_DIB = 8
-                    GMEM_MOVEABLE = 0x0002
+                    result = subprocess.run(
+                        ['powershell', '-Command', ps_command],
+                        capture_output=True,
+                        text=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW
+                    )
                     
-                    kernel32 = ctypes.windll.kernel32
-                    user32 = ctypes.windll.user32
-                    
-                    user32.OpenClipboard(None)
-                    user32.EmptyClipboard()
-                    
-                    hMem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
-                    pMem = kernel32.GlobalLock(hMem)
-                    ctypes.memmove(pMem, data, len(data))
-                    kernel32.GlobalUnlock(hMem)
-                    
-                    user32.SetClipboardData(CF_DIB, hMem)
-                    user32.CloseClipboard()
-                    
-                    self.status_var.set("Image copied to clipboard")
+                    if result.returncode == 0:
+                        self.status_var.set("Image copied to clipboard")
+                    else:
+                        self.status_var.set(f"Failed to copy image: {result.stderr[:50]}")
                 else:
                     self.status_var.set("Copy image not supported on this platform")
             except Exception as e:
