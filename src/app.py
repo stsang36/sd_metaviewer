@@ -273,6 +273,20 @@ class SDMetaViewer(tk.Tk):
             background=[('active', c['button_active']), ('pressed', c['accent'])],
             foreground=[('pressed', '#ffffff')]
         )
+        
+        # Compact dropdown menubutton (arrow only, minimal width)
+        self.style.configure('Arrow.TMenubutton',
+            background=c['button_bg'],
+            foreground=c['fg'],
+            font=('Segoe UI', 10),
+            borderwidth=0,
+            padding=(0, 6),
+            width=1
+        )
+        self.style.map('Arrow.TMenubutton',
+            background=[('active', c['button_active']), ('pressed', c['accent'])],
+            foreground=[('pressed', '#ffffff')]
+        )
 
         # Notebook (tabs) - clean flat style with subtle border
         self.style.configure('TNotebook', 
@@ -436,7 +450,22 @@ class SDMetaViewer(tk.Tk):
         
         # === Current Image Actions ===
         ttk.Button(toolbar_row1, text="📍 Show in Explorer", command=self._show_in_explorer, width=18).pack(side=tk.LEFT, padx=4)
-        ttk.Button(toolbar_row1, text="✕ Close Image", command=self._close_current, width=14).pack(side=tk.LEFT, padx=4)
+        
+        # Close button with dropdown
+        close_frame = ttk.Frame(toolbar_row1)
+        close_frame.pack(side=tk.LEFT, padx=4)
+        
+        ttk.Button(close_frame, text="✕ Close Image", command=self._close_current, width=14).pack(side=tk.LEFT, fill=tk.Y)
+        
+        self.close_menu_btn = ttk.Menubutton(close_frame, text="", style='Arrow.TMenubutton')
+        self.close_menu = tk.Menu(self.close_menu_btn, tearoff=0,
+                                  bg=self.colors['bg_secondary'], fg=self.colors['fg'],
+                                  activebackground=self.colors['accent'], activeforeground='#ffffff',
+                                  selectcolor=self.colors['accent'],
+                                  relief='flat', borderwidth=1, activeborderwidth=0)
+        self.close_menu.add_command(label="Close All Images", command=self._close_all)
+        self.close_menu_btn['menu'] = self.close_menu
+        self.close_menu_btn.pack(side=tk.LEFT, fill=tk.Y)
         
         # === Status on the right ===
         self.history_label = ttk.Label(toolbar_row1, text="", style='Secondary.TLabel')
@@ -504,6 +533,9 @@ class SDMetaViewer(tk.Tk):
         
         # Store placeholder items for cleanup
         self._placeholder_items = []
+        
+        # Add context menu to canvas (for empty areas)
+        self._add_canvas_context_menu()
         
         # Bind canvas resize
         self.image_canvas.bind('<Configure>', self._on_canvas_configure)
@@ -931,6 +963,29 @@ class SDMetaViewer(tk.Tk):
         # Show main viewer
         self.paned.grid(row=0, column=0, sticky='nsew')
     
+    def _add_canvas_context_menu(self):
+        """Add right-click context menu to the image canvas."""
+        menu = tk.Menu(self.image_canvas, tearoff=0,
+                       bg=self.colors['bg_secondary'], fg=self.colors['fg'],
+                       activebackground=self.colors['accent'], activeforeground='#ffffff',
+                       selectcolor=self.colors['accent'],
+                       relief='flat', borderwidth=1, activeborderwidth=0)
+        menu.add_command(label="Open Image...", command=self._open_file)
+        menu.add_command(label="Open Folder...", command=self._open_folder)
+        menu.add_command(label="Paste Image from Clipboard", command=self._paste_from_clipboard)
+        menu.add_separator()
+        menu.add_command(label="Copy Image", command=self._copy_image)
+        menu.add_command(label="Copy Image Path", command=self._copy_image_path)
+        menu.add_command(label="Show in Explorer", command=self._show_in_explorer)
+        
+        def show_menu(event):
+            try:
+                menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                menu.grab_release()
+        
+        self.image_canvas.bind("<Button-3>", show_menu)
+    
     def _add_context_menu(self, widget):
         """Add right-click context menu to a text widget."""
         menu = tk.Menu(widget, tearoff=0,
@@ -1192,6 +1247,40 @@ class SDMetaViewer(tk.Tk):
         # Draw placeholder
         self._draw_placeholder()
     
+    def _close_all(self):
+        """Close all images and reset to initial state."""
+        # Hide grid view if showing
+        if self.grid_frame:
+            self._hide_grid_view()
+        
+        # Reset all state
+        self.current_image_path = None
+        self.current_metadata = None
+        self.current_photo = None
+        self.current_folder = None
+        self.folder_images = []
+        self.folder_index = -1
+        self.image_history = []
+        self.history_index = -1
+        
+        # Reset UI
+        self.filename_label.configure(text="")
+        self.image_label.configure(image='', text="")
+        self.image_info_label.configure(text="")
+        self.source_label.configure(text="No image loaded")
+        self._set_text(self.prompt_text, "")
+        self._set_text(self.negative_text, "")
+        self._set_text(self.params_text, "No parameters found")
+        self._set_text(self.raw_text, "")
+        self.tags_text.configure(state='normal')
+        self.tags_text.delete('1.0', 'end')
+        self.tags_text.configure(state='disabled')
+        self.history_label.configure(text="")
+        self.status_var.set("All images closed")
+        
+        # Draw placeholder
+        self._draw_placeholder()
+
     def _load_image(self, filepath: str):
         """Load an image and extract its metadata."""
         try:
@@ -1383,6 +1472,7 @@ class SDMetaViewer(tk.Tk):
             selectcolor=self.colors['accent'],
             relief='flat', borderwidth=1, activeborderwidth=0
         )
+        menu.add_command(label="Copy Image", command=self._copy_image)
         menu.add_command(label="Copy Image Path", command=self._copy_image_path)
         menu.add_command(label="Show in Explorer", command=self._show_in_explorer)
         menu.add_separator()
@@ -1403,6 +1493,48 @@ class SDMetaViewer(tk.Tk):
             self.clipboard_clear()
             self.clipboard_append(self.current_image_path)
             self.status_var.set("Image path copied to clipboard")
+    
+    def _copy_image(self):
+        """Copy the current image to clipboard."""
+        if self.current_image_path and os.path.exists(self.current_image_path):
+            try:
+                import io
+                import subprocess
+                import platform
+                
+                if platform.system() == 'Windows':
+                    # Use PowerShell to copy image to clipboard on Windows
+                    img = Image.open(self.current_image_path)
+                    output = io.BytesIO()
+                    img.convert('RGB').save(output, 'BMP')
+                    data = output.getvalue()[14:]  # Remove BMP header
+                    output.close()
+                    
+                    import ctypes
+                    from ctypes import wintypes
+                    
+                    CF_DIB = 8
+                    GMEM_MOVEABLE = 0x0002
+                    
+                    kernel32 = ctypes.windll.kernel32
+                    user32 = ctypes.windll.user32
+                    
+                    user32.OpenClipboard(None)
+                    user32.EmptyClipboard()
+                    
+                    hMem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+                    pMem = kernel32.GlobalLock(hMem)
+                    ctypes.memmove(pMem, data, len(data))
+                    kernel32.GlobalUnlock(hMem)
+                    
+                    user32.SetClipboardData(CF_DIB, hMem)
+                    user32.CloseClipboard()
+                    
+                    self.status_var.set("Image copied to clipboard")
+                else:
+                    self.status_var.set("Copy image not supported on this platform")
+            except Exception as e:
+                self.status_var.set(f"Failed to copy image: {str(e)}")
     
     def _show_in_explorer(self):
         """Open file explorer and select the current image."""
