@@ -1078,6 +1078,10 @@ class SDMetaViewer(tk.Tk):
     
     def _setup_dnd(self):
         """Setup drag and drop functionality."""
+        # Always bind double-click to open file (not single click to avoid accidental opens)
+        self.image_label.bind('<Double-Button-1>', lambda e: self._open_file())
+        self.image_canvas.bind('<Double-Button-1>', lambda e: self._open_file())
+        
         # Bind drop events to the image label and frame
         for widget in [self.image_label, self.image_frame, self]:
             widget.drop_target_register = lambda: None
@@ -1095,9 +1099,6 @@ class SDMetaViewer(tk.Tk):
                 # Raise to go into fallback behavior below
                 raise AttributeError("Drag-and-drop methods not available")
         except Exception:
-            # Fallback: bind to file open on click
-            self.image_label.bind('<Button-1>', lambda e: self._open_file())
-            
             # Try to enable basic Windows drag-drop
             try:
                 import windnd
