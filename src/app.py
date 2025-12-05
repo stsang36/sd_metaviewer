@@ -150,6 +150,9 @@ class SDMetaViewer(tk.Tk):
         # Adjust layout after window is displayed
         self.after(50, self._adjust_initial_layout)
         
+        # Initialize navigation buttons as disabled (no images loaded yet)
+        self.after(100, self._update_nav_buttons)
+        
         # Start theme monitoring
         self._start_theme_monitor()
     
@@ -242,8 +245,8 @@ class SDMetaViewer(tk.Tk):
             padding=(14, 8)
         )
         self.style.map('TButton',
-            background=[('active', c['button_active']), ('pressed', c['accent'])],
-            foreground=[('pressed', '#ffffff')],
+            background=[('disabled', c['bg_tertiary']), ('active', c['button_active']), ('pressed', c['accent'])],
+            foreground=[('disabled', c['fg_secondary']), ('pressed', '#ffffff')],
             relief=[('pressed', 'flat')]
         )
         # Configure button layout for rounder appearance
@@ -274,8 +277,8 @@ class SDMetaViewer(tk.Tk):
             padding=(12, 6)
         )
         self.style.map('TMenubutton',
-            background=[('active', c['button_active']), ('pressed', c['accent'])],
-            foreground=[('pressed', '#ffffff')]
+            background=[('disabled', c['bg_tertiary']), ('active', c['button_active']), ('pressed', c['accent'])],
+            foreground=[('disabled', c['fg_secondary']), ('pressed', '#ffffff')]
         )
         
         # Compact dropdown menubutton (arrow only, minimal width)
@@ -288,8 +291,8 @@ class SDMetaViewer(tk.Tk):
             width=1
         )
         self.style.map('Arrow.TMenubutton',
-            background=[('active', c['button_active']), ('pressed', c['accent'])],
-            foreground=[('pressed', '#ffffff')]
+            background=[('disabled', c['bg_tertiary']), ('active', c['button_active']), ('pressed', c['accent'])],
+            foreground=[('disabled', c['fg_secondary']), ('pressed', '#ffffff')]
         )
 
         # Notebook (tabs) - clean flat style with subtle border
@@ -453,13 +456,17 @@ class SDMetaViewer(tk.Tk):
         ttk.Separator(toolbar_row1, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=12, fill=tk.Y)
         
         # === Current Image Actions ===
-        ttk.Button(toolbar_row1, text="📍 Show in Explorer", command=self._show_in_explorer, width=18).pack(side=tk.LEFT, padx=4)
+        self.show_explorer_btn = ttk.Button(toolbar_row1, text="📍 Show in Explorer", command=self._show_in_explorer, width=18)
+
+        self.show_explorer_btn.pack(side=tk.LEFT, padx=4)
         
         # Close button with dropdown
         close_frame = ttk.Frame(toolbar_row1)
         close_frame.pack(side=tk.LEFT, padx=4)
         
-        ttk.Button(close_frame, text="✕ Close Image", command=self._close_current, width=14).pack(side=tk.LEFT, fill=tk.Y)
+        self.close_btn = ttk.Button(close_frame, text="✕ Close Image", command=self._close_current, width=14)
+
+        self.close_btn.pack(side=tk.LEFT, fill=tk.Y)
         
         self.close_menu_btn = ttk.Menubutton(close_frame, text="", style='Arrow.TMenubutton')
         self.close_menu = tk.Menu(self.close_menu_btn, tearoff=0,
@@ -553,8 +560,10 @@ class SDMetaViewer(tk.Tk):
         nav_frame = ttk.Frame(left_frame)
         nav_frame.grid(row=3, column=0, sticky='ew', pady=(5, 0))
         
-        ttk.Button(nav_frame, text="◀ Previous", command=self._prev_image, width=12).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(nav_frame, text="Next ▶", command=self._next_image, width=12).pack(side=tk.RIGHT, padx=(10, 0))
+        self.prev_btn = ttk.Button(nav_frame, text="◀ Previous", command=self._prev_image, width=12)
+        self.prev_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self.next_btn = ttk.Button(nav_frame, text="Next ▶", command=self._next_image, width=12)
+        self.next_btn.pack(side=tk.RIGHT, padx=(10, 0))
         
         # Right panel - Metadata display
         right_frame = ttk.Frame(self.paned, padding="5")
@@ -1251,6 +1260,9 @@ class SDMetaViewer(tk.Tk):
         
         # Draw placeholder
         self._draw_placeholder()
+        
+        # Update button states
+        self._update_nav_buttons()
     
     def _close_all(self):
         """Close all images and reset to initial state."""
@@ -1285,6 +1297,9 @@ class SDMetaViewer(tk.Tk):
         
         # Draw placeholder
         self._draw_placeholder()
+        
+        # Update button states
+        self._update_nav_buttons()
 
     def _load_image(self, filepath: str):
         """Load an image and extract its metadata."""
@@ -1370,6 +1385,7 @@ class SDMetaViewer(tk.Tk):
         """Clear the recent images list."""
         self.recent_images = []
         self._update_recent_menu()
+        self._update_nav_buttons()
         self.status_var.set("Recent images cleared")
     
     def _paste_from_clipboard(self):
@@ -1828,6 +1844,38 @@ class SDMetaViewer(tk.Tk):
             self.history_label.configure(text=f"Image {current} of {total}")
         else:
             self.history_label.configure(text="")
+        
+        # Update navigation button states
+        self._update_nav_buttons()
+    
+    def _update_nav_buttons(self):
+        """Update the enabled/disabled state of navigation buttons."""
+        can_go_prev = False
+        can_go_next = False
+        
+        if self.current_folder and self.folder_images:
+            # Folder mode
+            can_go_prev = self.folder_index > 0
+            can_go_next = self.folder_index < len(self.folder_images) - 1
+        elif self.image_history:
+            # History mode
+            can_go_prev = self.history_index > 0
+            can_go_next = self.history_index < len(self.image_history) - 1
+        # If no images loaded at all, both stay False (disabled)
+        
+        # Update button states
+        self.prev_btn.configure(state='normal' if can_go_prev else 'disabled')
+        self.next_btn.configure(state='normal' if can_go_next else 'disabled')
+        
+        # Update close button and menu state based on whether any image is loaded
+        has_image = self.current_image_path is not None
+        self.close_btn.configure(state='normal' if has_image else 'disabled')
+        self.close_menu_btn.configure(state='normal' if has_image else 'disabled')
+        self.show_explorer_btn.configure(state='normal' if has_image else 'disabled')
+        
+        # Recent button - disabled when no recent images
+        has_recent = len(self.recent_images) > 0
+        self.recent_btn.configure(state='normal' if has_recent else 'disabled')
 
 
 def main():
