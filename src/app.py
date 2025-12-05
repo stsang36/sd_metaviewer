@@ -60,6 +60,8 @@ THEMES = {
         'text_border': '#d0d0d0',
         'text_bg': '#ffffff',
         'canvas_bg': '#e0e0e0',
+        'placeholder_bg': '#f0f0f0',
+        'placeholder_border': '#c0c0c0',
         'tag_bg': '#e3f2fd',
         'tag_fg': '#1565c0',
         'tag_neg_bg': '#ffebee',
@@ -80,6 +82,8 @@ THEMES = {
         'text_border': '#3a3a3a',
         'text_bg': '#252526',
         'canvas_bg': '#252526',
+        'placeholder_bg': '#3a3a3a',
+        'placeholder_border': '#505050',
         'tag_bg': '#264f78',
         'tag_fg': '#9cdcfe',
         'tag_neg_bg': '#4a2020',
@@ -573,41 +577,41 @@ class SDMetaViewer(tk.Tk):
         self.notebook.grid(row=1, column=0, sticky='nsew')
         
         # Formatted view tab
-        formatted_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(formatted_frame, text="📝 Formatted")
+        self.formatted_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(self.formatted_frame, text="📝 Formatted")
         
         # Configure formatted frame for proper expansion
-        formatted_frame.columnconfigure(0, weight=1)
-        formatted_frame.rowconfigure(1, weight=3)  # Prompt text expands most
-        formatted_frame.rowconfigure(3, weight=2)  # Negative prompt expands less
-        formatted_frame.rowconfigure(5, weight=1)  # Parameters expands least
+        self.formatted_frame.columnconfigure(0, weight=1)
+        self.formatted_frame.rowconfigure(1, weight=3)  # Prompt text expands most
+        self.formatted_frame.rowconfigure(3, weight=2)  # Negative prompt expands less
+        self.formatted_frame.rowconfigure(5, weight=1)  # Parameters expands least
         
         # Prompt section
-        prompt_label_frame = ttk.Frame(formatted_frame)
-        prompt_label_frame.grid(row=0, column=0, sticky='ew')
-        ttk.Label(prompt_label_frame, text="Prompt:", style='Header.TLabel').pack(side=tk.LEFT)
-        ttk.Button(prompt_label_frame, text="Copy", command=self._copy_prompt, width=6).pack(side=tk.RIGHT)
+        self.prompt_label_frame = ttk.Frame(self.formatted_frame)
+        self.prompt_label_frame.grid(row=0, column=0, sticky='ew')
+        ttk.Label(self.prompt_label_frame, text="Prompt:", style='Header.TLabel').pack(side=tk.LEFT)
+        ttk.Button(self.prompt_label_frame, text="Copy", command=self._copy_prompt, width=6).pack(side=tk.RIGHT)
         
-        prompt_container, self.prompt_text = self._create_scrolled_text(formatted_frame, height=4)
-        prompt_container.grid(row=1, column=0, sticky='nsew', pady=(5, 10))
+        self.prompt_container, self.prompt_text = self._create_scrolled_text(self.formatted_frame, height=4)
+        self.prompt_container.grid(row=1, column=0, sticky='nsew', pady=(5, 10))
         self.prompt_text.configure(state='disabled')
         self._add_context_menu(self.prompt_text)
         
         # Negative prompt section
-        neg_label_frame = ttk.Frame(formatted_frame)
-        neg_label_frame.grid(row=2, column=0, sticky='ew')
-        ttk.Label(neg_label_frame, text="Negative Prompt:", style='Header.TLabel').pack(side=tk.LEFT)
-        ttk.Button(neg_label_frame, text="Copy", command=self._copy_negative, width=6).pack(side=tk.RIGHT)
+        self.neg_label_frame = ttk.Frame(self.formatted_frame)
+        self.neg_label_frame.grid(row=2, column=0, sticky='ew')
+        ttk.Label(self.neg_label_frame, text="Negative Prompt:", style='Header.TLabel').pack(side=tk.LEFT)
+        ttk.Button(self.neg_label_frame, text="Copy", command=self._copy_negative, width=6).pack(side=tk.RIGHT)
         
-        neg_container, self.negative_text = self._create_scrolled_text(formatted_frame, height=3)
-        neg_container.grid(row=3, column=0, sticky='nsew', pady=(5, 10))
+        self.neg_container, self.negative_text = self._create_scrolled_text(self.formatted_frame, height=3)
+        self.neg_container.grid(row=3, column=0, sticky='nsew', pady=(5, 10))
         self.negative_text.configure(state='disabled')
         self._add_context_menu(self.negative_text)
         
         # Parameters section
-        ttk.Label(formatted_frame, text="Parameters:", style='Header.TLabel').grid(row=4, column=0, sticky='w')
+        ttk.Label(self.formatted_frame, text="Parameters:", style='Header.TLabel').grid(row=4, column=0, sticky='w')
         
-        params_container, self.params_text = self._create_scrolled_text(formatted_frame, height=4)
+        params_container, self.params_text = self._create_scrolled_text(self.formatted_frame, height=4)
         params_container.grid(row=5, column=0, sticky='nsew', pady=(5, 0))
         self.params_text.configure(state='disabled')
         self._add_context_menu(self.params_text)
@@ -693,7 +697,7 @@ class SDMetaViewer(tk.Tk):
         # Draw border rectangle with smooth=True for rounded look
         rect_id = self.image_canvas.create_polygon(
             points, smooth=True, splinesteps=12,
-            fill=c['bg_secondary'], outline=c['border'], width=2
+            fill=c['placeholder_bg'], outline=c['placeholder_border'], width=2
         )
         self._placeholder_items.append(rect_id)
         
@@ -1554,13 +1558,50 @@ class SDMetaViewer(tk.Tk):
         source = metadata.get("source", "Unknown")
         self.source_label.configure(text=source)
         
-        # Update prompt
+        # Update prompt - show/hide section based on content
         prompt = parsed.get("prompt", "")
         self._set_text(self.prompt_text, prompt)
+        has_prompt = bool(prompt.strip())
+        if has_prompt:
+            self.prompt_label_frame.grid()
+            self.prompt_container.grid()
+        else:
+            self.prompt_label_frame.grid_remove()
+            self.prompt_container.grid_remove()
         
-        # Update negative prompt
+        # Update negative prompt - show/hide section based on content
         negative = parsed.get("negative_prompt", "")
         self._set_text(self.negative_text, negative)
+        has_negative = bool(negative.strip())
+        if has_negative:
+            self.neg_label_frame.grid()
+            self.neg_container.grid()
+        else:
+            self.neg_label_frame.grid_remove()
+            self.neg_container.grid_remove()
+        
+        # Dynamically adjust row weights based on visible sections
+        # Parameters (row 5) always visible, gets more weight when others are hidden
+        if has_prompt and has_negative:
+            # Both visible - use default weights
+            self.formatted_frame.rowconfigure(1, weight=3)
+            self.formatted_frame.rowconfigure(3, weight=2)
+            self.formatted_frame.rowconfigure(5, weight=1)
+        elif has_prompt and not has_negative:
+            # Only prompt visible - give it more weight, params gets more too
+            self.formatted_frame.rowconfigure(1, weight=4)
+            self.formatted_frame.rowconfigure(3, weight=0)
+            self.formatted_frame.rowconfigure(5, weight=2)
+        elif not has_prompt and has_negative:
+            # Only negative visible - give it more weight, params gets more too
+            self.formatted_frame.rowconfigure(1, weight=0)
+            self.formatted_frame.rowconfigure(3, weight=4)
+            self.formatted_frame.rowconfigure(5, weight=2)
+        else:
+            # Neither visible - params gets all the weight
+            self.formatted_frame.rowconfigure(1, weight=0)
+            self.formatted_frame.rowconfigure(3, weight=0)
+            self.formatted_frame.rowconfigure(5, weight=1)
         
         # Update parameters (including camera info)
         params = parsed.get("parameters", {})
