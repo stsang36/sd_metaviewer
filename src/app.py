@@ -6,8 +6,20 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 import os
+import json
+import re
+import subprocess
+import platform
+import tempfile
 from pathlib import Path
 from typing import Optional, Dict, List, Any, cast
+
+# Optional imports with fallbacks
+try:
+    from PIL import ImageGrab
+    _HAS_IMAGEGRAB = True
+except ImportError:
+    _HAS_IMAGEGRAB = False
 
 # Windows-specific imports (cached at module level)
 try:
@@ -133,10 +145,13 @@ class SDMetaViewer(tk.Tk):
         self._is_navigating = False
         self.history_index = -1
         self.current_photo: Optional[ImageTk.PhotoImage] = None
+        self._current_pil_image: Optional[Image.Image] = None  # Cache for resize
         self.current_folder: Optional[str] = None
         self.folder_images: List[str] = []
         self.folder_index = -1
         self.recent_images: List[str] = []
+        self._thumb_load_index = 0  # For async thumbnail loading
+        self._placeholder_redraw_timer = None  # Debounce for placeholder redraws
         
         # Configure style with theme
         self._configure_theme()
@@ -167,8 +182,8 @@ class SDMetaViewer(tk.Tk):
             self.dark_mode = new_dark_mode
             self.colors = THEMES['dark'] if self.dark_mode else THEMES['light']
             self._apply_theme()
-        # Check again in 2 seconds (balance between responsiveness and CPU)
-        self.after(2000, self._check_theme_change)
+        # Check again in 10 seconds (reduced CPU usage when idle)
+        self.after(10000, self._check_theme_change)
     
     def _apply_theme(self):
         """Apply current theme to all widgets."""
@@ -656,6 +671,9 @@ class SDMetaViewer(tk.Tk):
                                       spacing1=5, spacing3=5)
         self.tags_text.tag_configure('header_neg', font=('Segoe UI', 11, 'bold'), foreground=self.colors['tag_neg_fg'],
                                       spacing1=10, spacing3=5)
+        
+        # Create image context menu once (reused for all images)
+        self._image_context_menu = self._create_image_context_menu()
     
     def _draw_placeholder(self):
         """Draw a centered placeholder with rounded corners on the canvas."""
@@ -672,9 +690,13 @@ class SDMetaViewer(tk.Tk):
         if canvas_width < 50 or canvas_height < 50:
             return  # Canvas not ready yet
         
-        # Placeholder box dimensions
-        box_width = min(280, canvas_width - 40)
-        box_height = min(200, canvas_height - 40)
+        # Placeholder box dimensions - fixed size, centered in canvas
+        box_width = min(280, canvas_width - 20)
+        box_height = min(200, canvas_height - 20)
+        
+        # Don't draw if box would be too small
+        if box_width < 60 or box_height < 60:
+            return
         
         # Center position
         x1 = (canvas_width - box_width) // 2
@@ -683,7 +705,7 @@ class SDMetaViewer(tk.Tk):
         y2 = y1 + box_height
         
         # Draw rounded rectangle using polygon approximation
-        radius = 12
+        radius = min(12, box_width // 6, box_height // 6)
         c = self.colors
         
         # Create rounded rectangle path
@@ -710,33 +732,86 @@ class SDMetaViewer(tk.Tk):
         )
         self._placeholder_items.append(rect_id)
         
-        # Draw icon (using unicode box drawing as fallback)
-        icon_y = y1 + 35
-        icon_id = self.image_canvas.create_text(
-            (x1 + x2) // 2, icon_y,
-            text="🖼", font=('Segoe UI Emoji', 24), fill=c['fg_secondary']
-        )
-        self._placeholder_items.append(icon_id)
+        # Calculate available content area (with padding)
+        padding = 15
+        content_width = box_width - (padding * 2)
+        content_height = box_height - (padding * 2)
+        center_x = (x1 + x2) // 2
+        center_y = (y1 + y2) // 2
         
-        # Draw text lines
-        text_lines = [
-            "Drag & Drop Image Here",
-            "or",
-            "Click 'Open Image'",
-            "",
-            "Supports PNG, JPG, WEBP"
-        ]
+        # Determine what to show based on BOTH width and height
+        is_narrow = content_width < 180
+        is_short = content_height < 120
         
-        line_y = icon_y + 40
-        for i, line in enumerate(text_lines):
-            if line:
-                font_style = ('Segoe UI', 11) if i in [0, 2] else ('Segoe UI', 10)
-                text_id = self.image_canvas.create_text(
-                    (x1 + x2) // 2, line_y,
-                    text=line, font=font_style, fill=c['fg'] if i in [0, 2] else c['fg_secondary']
-                )
-                self._placeholder_items.append(text_id)
-            line_y += 22
+        if is_short and is_narrow:
+            # Very small: just icon
+            icon_id = self.image_canvas.create_text(
+                center_x, center_y,
+                text="🖼", font=('Segoe UI Emoji', 16), fill=c['fg_secondary']
+            )
+            self._placeholder_items.append(icon_id)
+        elif is_short:
+            # Short but wide enough: icon + single line
+            icon_id = self.image_canvas.create_text(
+                center_x, center_y - 15,
+                text="🖼", font=('Segoe UI Emoji', 20), fill=c['fg_secondary']
+            )
+            self._placeholder_items.append(icon_id)
+            text_id = self.image_canvas.create_text(
+                center_x, center_y + 20,
+                text="Drop Image Here", font=('Segoe UI', 10), fill=c['fg'],
+                width=content_width
+            )
+            self._placeholder_items.append(text_id)
+        elif is_narrow:
+            # Narrow but tall: stacked compact text
+            icon_id = self.image_canvas.create_text(
+                center_x, y1 + padding + 20,
+                text="🖼", font=('Segoe UI Emoji', 20), fill=c['fg_secondary']
+            )
+            self._placeholder_items.append(icon_id)
+            text_id = self.image_canvas.create_text(
+                center_x, y1 + padding + 55,
+                text="Drop", font=('Segoe UI', 11), fill=c['fg']
+            )
+            self._placeholder_items.append(text_id)
+            text_id2 = self.image_canvas.create_text(
+                center_x, y1 + padding + 75,
+                text="Image", font=('Segoe UI', 11), fill=c['fg']
+            )
+            self._placeholder_items.append(text_id2)
+        else:
+            # Full size: all content with width constraint
+            icon_y = y1 + padding + 25
+            icon_id = self.image_canvas.create_text(
+                center_x, icon_y,
+                text="🖼", font=('Segoe UI Emoji', 24), fill=c['fg_secondary']
+            )
+            self._placeholder_items.append(icon_id)
+            
+            text_lines = [
+                ("Drag & Drop Image Here", ('Segoe UI', 11), c['fg']),
+                ("or", ('Segoe UI', 10), c['fg_secondary']),
+                ("Click 'Open Image'", ('Segoe UI', 11), c['fg']),
+            ]
+            
+            # Add format support line only if enough vertical space
+            if content_height >= 150:
+                text_lines.append(("", None, None))
+                text_lines.append(("Supports PNG, JPG, WEBP", ('Segoe UI', 10), c['fg_secondary']))
+            
+            line_y = icon_y + 40
+            for text, font_style, color in text_lines:
+                if text and font_style:
+                    text_id = self.image_canvas.create_text(
+                        center_x, line_y,
+                        text=text, font=font_style, fill=color,
+                        width=content_width
+                    )
+                    self._placeholder_items.append(text_id)
+                line_y += 22
+
+
     
     def _clear_placeholder(self):
         """Remove placeholder items from canvas."""
@@ -750,16 +825,27 @@ class SDMetaViewer(tk.Tk):
         # Show the image frame again
         self.image_canvas.itemconfigure(self.canvas_window, state='normal')
     
+    def _redraw_placeholder_debounced(self):
+        """Redraw placeholder after resize settles (debounced)."""
+        self._placeholder_redraw_timer = None
+        # Force geometry update to get accurate canvas size
+        self.update_idletasks()
+        self._draw_placeholder()
+    
     def _on_canvas_configure(self, event):
         """Handle canvas resize and center the image."""
+        # If no image loaded, redraw placeholder with debounce
+        if not self.current_image_path:
+            # Cancel any pending redraw
+            if self._placeholder_redraw_timer:
+                self.after_cancel(self._placeholder_redraw_timer)
+            # Schedule redraw after resize settles
+            self._placeholder_redraw_timer = self.after(50, self._redraw_placeholder_debounced)
+            return
+        
         # Get canvas and frame dimensions
         canvas_width = event.width
         canvas_height = event.height
-        
-        # If no image loaded, show placeholder
-        if not self.current_image_path:
-            self._draw_placeholder()
-            return
         
         # Get frame size
         frame_width = self.image_frame.winfo_reqwidth()
@@ -885,14 +971,14 @@ class SDMetaViewer(tk.Tk):
         self.status_var.set(f"Showing {len(self.folder_images)} images from {folder_name}")
     
     def _load_grid_thumbnails(self):
-        """Load thumbnails for the grid view."""
+        """Start async loading of thumbnails for the grid view."""
         self.grid_thumbnails = []
         self._grid_thumb_frames = []  # Store frames for re-layout
+        self._thumb_load_index = 0
         
-        # Calculate grid columns based on available width - use window width
+        # Calculate grid columns based on available width
         self.update_idletasks()
-        # Get actual available width from the grid frame or window
-        canvas_width = self.winfo_width() - 40  # Window width minus some padding
+        canvas_width = self.winfo_width() - 40
         if hasattr(self, '_grid_canvas') and self._grid_canvas.winfo_exists():
             try:
                 cw = self._grid_canvas.winfo_width()
@@ -902,49 +988,56 @@ class SDMetaViewer(tk.Tk):
                 pass
         
         thumb_size = 150
-        thumb_total = thumb_size + 20  # thumbnail + padding
-        cols = max(1, canvas_width // thumb_total)
-        self._grid_last_cols = cols
+        thumb_total = thumb_size + 20
+        self._grid_cols = max(1, canvas_width // thumb_total)
+        self._grid_last_cols = self._grid_cols
+        self._grid_thumb_size = thumb_size
         
-        for i, filepath in enumerate(self.folder_images):
-            row = i // cols
-            col = i % cols
-            
-            # Create frame for each thumbnail
-            thumb_frame = ttk.Frame(self.grid_inner_frame, padding=5)
-            thumb_frame.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
-            self._grid_thumb_frames.append(thumb_frame)
-            
-            try:
-                # Load and resize thumbnail
-                with Image.open(filepath) as img:
-                    img.thumbnail((thumb_size, thumb_size), Image.Resampling.LANCZOS)
-                    photo = ImageTk.PhotoImage(img)
-                    self.grid_thumbnails.append(photo)  # Keep reference
-                    
-                    # Image label
-                    img_label = ttk.Label(thumb_frame, image=photo, cursor='hand2')
-                    img_label.pack()
-                    
-                    # Bind click
-                    img_label.bind('<Button-1>', lambda e, fp=filepath: self._select_from_grid(fp))
-                    
-                    # Filename label
-                    name = os.path.basename(filepath)
-                    if len(name) > 20:
-                        name = name[:17] + "..."
-                    name_label = ttk.Label(thumb_frame, text=name, font=('Segoe UI', 8))
-                    name_label.pack()
-                    name_label.bind('<Button-1>', lambda e, fp=filepath: self._select_from_grid(fp))
-                    
-            except Exception as e:
-                # Show placeholder for failed thumbnails
-                error_label = ttk.Label(thumb_frame, text="❌\nError", font=('Segoe UI', 10))
-                error_label.pack(padx=20, pady=20)
-            
-            # Update UI periodically
-            if i % 10 == 0:
-                self.update_idletasks()
+        # Start async loading
+        self._load_next_thumbnail()
+    
+    def _load_next_thumbnail(self):
+        """Load the next thumbnail asynchronously."""
+        if not hasattr(self, 'grid_inner_frame') or not self.grid_inner_frame.winfo_exists():
+            return  # Grid view was closed
+        
+        if self._thumb_load_index >= len(self.folder_images):
+            return  # All done
+        
+        i = self._thumb_load_index
+        filepath = self.folder_images[i]
+        row = i // self._grid_cols
+        col = i % self._grid_cols
+        
+        # Create frame for each thumbnail
+        thumb_frame = ttk.Frame(self.grid_inner_frame, padding=5)
+        thumb_frame.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
+        self._grid_thumb_frames.append(thumb_frame)
+        
+        try:
+            with Image.open(filepath) as img:
+                img.thumbnail((self._grid_thumb_size, self._grid_thumb_size), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                self.grid_thumbnails.append(photo)
+                
+                img_label = ttk.Label(thumb_frame, image=photo, cursor='hand2')
+                img_label.pack()
+                img_label.bind('<Button-1>', lambda e, fp=filepath: self._select_from_grid(fp))
+                
+                name = os.path.basename(filepath)
+                if len(name) > 20:
+                    name = name[:17] + "..."
+                name_label = ttk.Label(thumb_frame, text=name, font=('Segoe UI', 8))
+                name_label.pack()
+                name_label.bind('<Button-1>', lambda e, fp=filepath: self._select_from_grid(fp))
+        except Exception:
+            error_label = ttk.Label(thumb_frame, text="❌\nError", font=('Segoe UI', 10))
+            error_label.pack(padx=20, pady=20)
+        
+        self._thumb_load_index += 1
+        
+        # Schedule next thumbnail (non-blocking)
+        self.after(5, self._load_next_thumbnail)
     
     def _relayout_grid(self, cols: int):
         """Re-layout the grid with a new number of columns."""
@@ -1401,29 +1494,26 @@ class SDMetaViewer(tk.Tk):
                 pass
             
             # Try to get image from clipboard (Windows)
-            try:
-                from PIL import ImageGrab
-                img = ImageGrab.grabclipboard()
-                
-                if img is not None:
-                    if isinstance(img, list):
-                        # It's a list of file paths
-                        for item in img:
-                            if os.path.isfile(str(item)):
-                                self._load_image(str(item))
-                                return
-                    elif hasattr(img, 'save'):
-                        # It's an image - save temporarily and load
-                        import tempfile
-                        temp_path = os.path.join(tempfile.gettempdir(), "sd_metaviewer_paste.png")
-                        img.save(temp_path, "PNG")
-                        self._load_image(temp_path)
-                        self.status_var.set("Loaded image from clipboard (Note: Pasted images may not have metadata)")
-                        return
-            except ImportError:
-                pass
-            except Exception as e:
-                pass
+            if _HAS_IMAGEGRAB:
+                try:
+                    img = ImageGrab.grabclipboard()
+                    
+                    if img is not None:
+                        if isinstance(img, list):
+                            # It's a list of file paths
+                            for item in img:
+                                if os.path.isfile(str(item)):
+                                    self._load_image(str(item))
+                                    return
+                        elif hasattr(img, 'save'):
+                            # It's an image - save temporarily and load
+                            temp_path = os.path.join(tempfile.gettempdir(), "sd_metaviewer_paste.png")
+                            img.save(temp_path, "PNG")
+                            self._load_image(temp_path)
+                            self.status_var.set("Loaded image from clipboard (Note: Pasted images may not have metadata)")
+                            return
+                except Exception:
+                    pass
             
             self.status_var.set("No image found in clipboard")
             
@@ -1440,49 +1530,62 @@ class SDMetaViewer(tk.Tk):
             filename = os.path.basename(filepath)
             self.filename_label.configure(text=filename)
             
-            with Image.open(filepath) as img:
-                # Get canvas size for scaling
-                self.update_idletasks()
-                canvas_width = self.image_canvas.winfo_width() - 20
-                canvas_height = self.image_canvas.winfo_height() - 20
-                
-                # Use reasonable defaults if canvas size not yet available
-                if canvas_width < 100:
-                    canvas_width = 400
-                if canvas_height < 100:
-                    canvas_height = 400
-                
-                # Calculate size to fit in canvas while maintaining aspect ratio
-                img_width, img_height = img.size
-                ratio = min(canvas_width / img_width, canvas_height / img_height, 1.0)
-                
-                new_width = int(img_width * ratio)
-                new_height = int(img_height * ratio)
-                
-                # Resize with high quality
-                if ratio < 1.0:
-                    resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                else:
-                    resized_img = img.copy()
-                
-                # Convert to PhotoImage
-                self.current_photo = ImageTk.PhotoImage(resized_img)
-                
-                # Update label
-                self.image_label.configure(image=self.current_photo, text='')
-                
-                # Force update and recenter
-                self.update_idletasks()
-                self._center_image()
-                
-                # Add right-click menu for image
-                self._add_image_context_menu()
+            # Load and cache the image
+            img = Image.open(filepath)
+            self._current_pil_image = img.copy()  # Cache for resize operations
+            
+            # Get canvas size for scaling
+            self.update_idletasks()
+            canvas_width = self.image_canvas.winfo_width() - 20
+            canvas_height = self.image_canvas.winfo_height() - 20
+            
+            # Use reasonable defaults if canvas size not yet available
+            if canvas_width < 100:
+                canvas_width = 400
+            if canvas_height < 100:
+                canvas_height = 400
+            
+            # Calculate size to fit in canvas while maintaining aspect ratio
+            img_width, img_height = img.size
+            ratio = min(canvas_width / img_width, canvas_height / img_height, 1.0)
+            
+            new_width = int(img_width * ratio)
+            new_height = int(img_height * ratio)
+            
+            # Resize with high quality
+            if ratio < 1.0:
+                resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            else:
+                resized_img = img.copy()
+            
+            img.close()  # Close original, we have the cached copy
+            
+            # Convert to PhotoImage
+            self.current_photo = ImageTk.PhotoImage(resized_img)
+            
+            # Update label
+            self.image_label.configure(image=self.current_photo, text='')
+            
+            # Force update and recenter
+            self.update_idletasks()
+            self._center_image()
+            
+            # Bind context menu (reuse existing menu created in _create_viewer_pane)
+            if hasattr(self, '_image_context_menu'):
+                self.image_label.bind("<Button-3>", self._show_image_context_menu)
                 
         except Exception as e:
             self.image_label.configure(image='', text=f"Error displaying image:\n{str(e)}")
     
-    def _add_image_context_menu(self):
-        """Add right-click menu to image label."""
+    def _show_image_context_menu(self, event):
+        """Show the image context menu."""
+        try:
+            self._image_context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self._image_context_menu.grab_release()
+    
+    def _create_image_context_menu(self):
+        """Create and return the image context menu (called once at startup)."""
         menu = tk.Menu(
             self.image_label, 
             tearoff=0,
@@ -1499,14 +1602,7 @@ class SDMetaViewer(tk.Tk):
         menu.add_separator()
         menu.add_command(label="Copy Prompt", command=self._copy_prompt)
         menu.add_command(label="Copy All Metadata", command=self._copy_all)
-        
-        def show_menu(event):
-            try:
-                menu.tk_popup(event.x_root, event.y_root)
-            finally:
-                menu.grab_release()
-        
-        self.image_label.bind("<Button-3>", show_menu)
+        return menu
     
     def _copy_image_path(self):
         """Copy the current image path to clipboard."""
@@ -1670,7 +1766,6 @@ class SDMetaViewer(tk.Tk):
         # Update raw metadata
         raw = metadata.get("raw_metadata", {})
         try:
-            import json
             raw_text = json.dumps(raw, indent=2, ensure_ascii=False)
         except:
             raw_text = str(raw)
@@ -1705,7 +1800,6 @@ class SDMetaViewer(tk.Tk):
         prompt = parsed.get("prompt", "")
         if prompt:
             self.tags_text.insert('end', "Prompt Tags:\n", 'header')
-            import re
             
             # Check if it's comma-separated tags or natural language
             comma_count = prompt.count(',')
@@ -1731,7 +1825,6 @@ class SDMetaViewer(tk.Tk):
         negative = parsed.get("negative_prompt", "")
         if negative:
             self.tags_text.insert('end', "Negative Tags:\n", 'header_neg')
-            import re
             
             comma_count = negative.count(',')
             word_count = len(negative.split())
