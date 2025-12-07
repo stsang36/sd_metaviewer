@@ -2,7 +2,7 @@
 
 A lightweight, native Windows application for viewing metadata from AI-generated images (Stable Diffusion, NovelAI, ComfyUI, etc.) and photos. This project was mostly done using Claude Opus 4.5 available in GitHub Copilot. 
 
-![alt-text](examples/Screenshot2.png "Main Program in Dark Mode")
+![alt-text](examples/screenshot.png "Main Program in Dark Mode")
 
 ## Features
 
