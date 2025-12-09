@@ -197,6 +197,10 @@ class SDMetaViewer(tk.Tk):
         
         # Update tk widgets that don't use ttk styles
         self._update_widget_colors()
+        
+        # Redraw placeholder if no image is loaded (so theme colors update immediately)
+        if not self.current_image_path:
+            self._draw_placeholder()
     
     def _update_widget_colors(self):
         """Update colors for tk widgets that don't use ttk styles."""
